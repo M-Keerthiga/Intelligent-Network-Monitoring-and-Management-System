@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { deviceService } from '../services/api';
+import { deviceService, analysisService } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import HealthGauge from '../components/HealthGauge';
+import ExplainableAI from '../components/ExplainableAI';
+import RootCauseAnalysis from '../components/RootCauseAnalysis';
 import {
   ArrowLeft,
   Server,
@@ -14,7 +16,11 @@ import {
   Lightbulb,
   ShieldAlert,
   Wifi,
-  Radio
+  Radio,
+  Sparkles,
+  GitBranch,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid
@@ -30,6 +36,11 @@ const DeviceDetail = () => {
   const [range, setRange] = useState('24h');
   const [loading, setLoading] = useState(true);
 
+  // XAI & Bayesian Root Cause States
+  const [analysis, setAnalysis] = useState(null);
+  const [analysisTab, setAnalysisTab] = useState('ALL'); // ALL, XAI, BAYESIAN
+  const [analysisExpanded, setAnalysisExpanded] = useState(true);
+
   useEffect(() => {
     fetchDeviceDetail();
     const interval = setInterval(fetchDeviceDetail, 10000);
@@ -38,14 +49,18 @@ const DeviceDetail = () => {
 
   const fetchDeviceDetail = async () => {
     try {
-      const [devResp, metResp, alrResp] = await Promise.all([
+      const [devResp, metResp, alrResp, anaResp] = await Promise.all([
         deviceService.getById(id),
         deviceService.getMetrics(id, range),
-        deviceService.getAlerts(id)
+        deviceService.getAlerts(id),
+        analysisService.getForDevice(id).catch(() => null)
       ]);
       setDevice(devResp.data);
       setMetrics(metResp.data);
       setAlerts(alrResp.data);
+      if (anaResp && anaResp.data) {
+        setAnalysis(anaResp.data);
+      }
     } catch (err) {
       console.error('Failed to fetch device detail:', err);
     } finally {
@@ -221,6 +236,76 @@ const DeviceDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Explainable AI & Bayesian Root Cause Telemetry Intelligence Panel */}
+      {analysis && (
+        <div className="noc-card p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-cyan-950 text-cyan-400 border border-cyan-800/80 rounded-xl">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                  <span>Device Incident Intelligence: XAI & Bayesian Root Cause</span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                    Live Telemetry Analysis
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Explains anomalous telemetry deviations and calculates probabilistic root causes.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
+                {['ALL', 'XAI', 'BAYESIAN'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setAnalysisTab(tab)}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      analysisTab === tab
+                        ? 'bg-cyan-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab === 'ALL' ? 'Unified' : tab === 'XAI' ? 'XAI (Why?)' : 'Bayesian RCA'}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setAnalysisExpanded(!analysisExpanded)}
+                className="p-1.5 bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg transition-colors"
+                title="Toggle Intelligence Section"
+              >
+                {analysisExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {analysisExpanded && (
+            <div className="space-y-6 pt-2">
+              {(analysisTab === 'ALL' || analysisTab === 'XAI') && (
+                <ExplainableAI
+                  xai={analysis.xai}
+                  observedMetrics={analysis.observedMetrics}
+                  baselineMetrics={analysis.baselineMetrics}
+                  deviceName={device.name}
+                />
+              )}
+
+              {(analysisTab === 'ALL' || analysisTab === 'BAYESIAN') && (
+                <RootCauseAnalysis
+                  bayesianRca={analysis.bayesianRca}
+                  recommendation={analysis.recommendation}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Historical Telemetry Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

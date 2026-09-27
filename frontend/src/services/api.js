@@ -58,4 +58,11 @@ export const settingsService = {
   update: (data) => api.put('/settings', data),
 };
 
+export const analysisService = {
+  getForAlert: (alertId) => api.get(`/analysis/alert/${alertId}`),
+  getForDevice: (deviceId) => api.get(`/analysis/device/${deviceId}`),
+  evaluateCustom: (metrics) => api.post('/analysis/evaluate', metrics),
+  getBenchmarks: () => api.get('/analysis/benchmarks'),
+};
+
 export default api;

@@ -6,6 +6,7 @@ import HealthGauge from '../components/HealthGauge';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
 import { CardSkeleton, TableSkeleton } from '../components/Skeleton';
+import IncidentAnalysisModal from '../components/IncidentAnalysisModal';
 import {
   Server,
   Wifi,
@@ -21,7 +22,8 @@ import {
   CheckSquare,
   Network,
   Eye,
-  Sliders
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend
@@ -39,6 +41,7 @@ const Dashboard = () => {
   // Toast & Modal States
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, alertId: null, title: '', message: '' });
+  const [selectedAnalysisAlertId, setSelectedAnalysisAlertId] = useState(null);
 
   const navigate = useNavigate();
 
@@ -426,6 +429,15 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
                     <span className="text-[11px] font-mono text-slate-400">Status: <strong className="text-cyan-400">{a.status}</strong></span>
                     <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSelectedAnalysisAlertId(a.id)}
+                        className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-800 text-cyan-300 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                        title="Explain & Diagnose (XAI + Bayesian RCA)"
+                      >
+                        <Sparkles className="w-3 h-3 text-cyan-400" />
+                        <span>Diagnose</span>
+                      </button>
+
                       {a.status === 'OPEN' && (
                         <button
                           onClick={() => handleAcknowledge(a.id)}
@@ -513,6 +525,13 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Incident Analysis Deep Diagnostic Modal */}
+      <IncidentAnalysisModal
+        isOpen={!!selectedAnalysisAlertId}
+        alertId={selectedAnalysisAlertId}
+        onClose={() => setSelectedAnalysisAlertId(null)}
+      />
     </div>
   );
 };

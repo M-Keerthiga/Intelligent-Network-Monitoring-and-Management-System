@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { alertService, deviceService } from '../services/api';
+import { alertService, deviceService, analysisService } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
-import { ShieldAlert, CheckCircle, CheckSquare, RefreshCw, Lightbulb, Search, Filter } from 'lucide-react';
+import ExplainableAI from '../components/ExplainableAI';
+import RootCauseAnalysis from '../components/RootCauseAnalysis';
+import IncidentAnalysisModal from '../components/IncidentAnalysisModal';
+import { ShieldAlert, CheckCircle, CheckSquare, RefreshCw, Lightbulb, Search, Filter, Sparkles, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
 
 const Alerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -19,6 +22,31 @@ const Alerts = () => {
 
   const [ackModalAlert, setAckModalAlert] = useState(null);
   const [ackNote, setAckNote] = useState('');
+
+  // XAI & Bayesian Root Cause States
+  const [analysisMap, setAnalysisMap] = useState({});
+  const [expandedAlertId, setExpandedAlertId] = useState(null);
+  const [modalAlertId, setModalAlertId] = useState(null);
+  const [loadingAnalysisId, setLoadingAnalysisId] = useState(null);
+
+  const toggleAlertAnalysis = async (alertId) => {
+    if (expandedAlertId === alertId) {
+      setExpandedAlertId(null);
+      return;
+    }
+    setExpandedAlertId(alertId);
+    if (!analysisMap[alertId]) {
+      setLoadingAnalysisId(alertId);
+      try {
+        const resp = await analysisService.getForAlert(alertId);
+        setAnalysisMap((prev) => ({ ...prev, [alertId]: resp.data }));
+      } catch (err) {
+        console.error('Failed to load analysis for alert:', err);
+      } finally {
+        setLoadingAnalysisId(null);
+      }
+    }
+  };
 
   useEffect(() => {
     fetchAlertsAndDevices();
@@ -243,32 +271,88 @@ const Alerts = () => {
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end space-x-3 pt-2 border-t border-slate-800/60">
-                {a.status === 'OPEN' && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+                <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setAckModalAlert(a)}
-                    className="flex items-center space-x-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    onClick={() => toggleAlertAnalysis(a.id)}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                      expandedAlertId === a.id
+                        ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
+                        : 'bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border-cyan-800/80'
+                    }`}
                   >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    <span>Acknowledge</span>
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Explain & Root Cause (XAI + Bayesian)</span>
+                    {expandedAlertId === a.id ? (
+                      <ChevronUp className="w-3.5 h-3.5 ml-1" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                    )}
                   </button>
-                )}
 
-                {a.status !== 'RESOLVED' && (
                   <button
-                    onClick={() => setConfirmModal({
-                      isOpen: true,
-                      alertId: a.id,
-                      title: `Resolve Alert #${a.id}`,
-                      message: `Are you sure you want to mark this ${a.alertType} alert as RESOLVED?`
-                    })}
-                    className="flex items-center space-x-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    onClick={() => setModalAlertId(a.id)}
+                    title="Open Detailed Diagnostic Modal"
+                    className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800 rounded-lg text-xs transition-colors"
                   >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Mark Resolved</span>
+                    <GitBranch className="w-3.5 h-3.5" />
                   </button>
-                )}
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  {a.status === 'OPEN' && (
+                    <button
+                      onClick={() => setAckModalAlert(a)}
+                      className="flex items-center space-x-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span>Acknowledge</span>
+                    </button>
+                  )}
+
+                  {a.status !== 'RESOLVED' && (
+                    <button
+                      onClick={() => setConfirmModal({
+                        isOpen: true,
+                        alertId: a.id,
+                        title: `Resolve Alert #${a.id}`,
+                        message: `Are you sure you want to mark this ${a.alertType} alert as RESOLVED?`
+                      })}
+                      className="flex items-center space-x-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Mark Resolved</span>
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Expandable Inline XAI & Bayesian Root Cause Analysis Panel */}
+              {expandedAlertId === a.id && (
+                <div className="mt-4 pt-4 border-t border-slate-800/90 space-y-4">
+                  {loadingAnalysisId === a.id && (
+                    <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center space-x-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                      <span>Calculating metric deviations and Bayesian posterior probabilities...</span>
+                    </div>
+                  )}
+
+                  {analysisMap[a.id] && (
+                    <div className="space-y-6">
+                      <ExplainableAI
+                        xai={analysisMap[a.id].xai}
+                        observedMetrics={analysisMap[a.id].observedMetrics}
+                        baselineMetrics={analysisMap[a.id].baselineMetrics}
+                        deviceName={analysisMap[a.id].deviceName}
+                      />
+                      <RootCauseAnalysis
+                        bayesianRca={analysisMap[a.id].bayesianRca}
+                        recommendation={analysisMap[a.id].recommendation}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
@@ -317,6 +401,13 @@ const Alerts = () => {
           </div>
         </div>
       )}
+
+      {/* Incident Analysis Deep Diagnostic Modal */}
+      <IncidentAnalysisModal
+        isOpen={!!modalAlertId}
+        alertId={modalAlertId}
+        onClose={() => setModalAlertId(null)}
+      />
     </div>
   );
 };
